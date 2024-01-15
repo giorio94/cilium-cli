@@ -314,10 +314,6 @@ func (ct *ConnectivityTest) SetupAndValidate(ctx context.Context, setupAndValida
 	if err := ct.detectFeatures(ctx); err != nil {
 		return err
 	}
-	// Setup and validate all the extras coming from extended functionalities.
-	if err := setupAndValidateExtras(ctx, ct); err != nil {
-		return err
-	}
 
 	if ct.debug() {
 		fs := make([]features.Feature, 0, len(ct.Features))
@@ -365,6 +361,12 @@ func (ct *ConnectivityTest) SetupAndValidate(ctx context.Context, setupAndValida
 			return fmt.Errorf("unable to detect K8s CIDR: %w", err)
 		}
 	}
+
+	// Setup and validate all the extras coming from extended functionalities.
+	if err := setupAndValidateExtras(ctx, ct); err != nil {
+		return err
+	}
+
 	return nil
 }
 
