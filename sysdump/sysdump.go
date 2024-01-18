@@ -1972,15 +1972,11 @@ func (c *Collector) submitCiliumBugtoolTasks(pods []*corev1.Pod) error {
 }
 
 func (c *Collector) submitHubbleFlowsTasks(_ context.Context, pods []*corev1.Pod, containerName string) error {
-	hubbleFlowsTimeout := strconv.FormatInt(int64(c.Options.HubbleFlowsTimeout/time.Second), 10)
 	for _, p := range pods {
 		p := p
 		if err := c.Pool.Submit(fmt.Sprintf("hubble-flows-"+p.Name), func(ctx context.Context) error {
-			// HACK: Run hubble observe with --follow to avoid hitting the code path that triggers
-			// https://github.com/cilium/cilium/issues/17036.
 			b, e, err := c.Client.ExecInPodWithStderr(ctx, p.Namespace, p.Name, containerName, []string{
-				"timeout", "--signal", "SIGINT", "--preserve-status", hubbleFlowsTimeout, "bash", "-c",
-				fmt.Sprintf("hubble observe --follow --last %d --debug -o jsonpb", c.Options.HubbleFlowsCount),
+				"hubble", "observe", "--last", strconv.FormatInt(c.Options.HubbleFlowsCount, 10), "--debug", "-o", "jsonpb",
 			})
 			if err != nil {
 				return fmt.Errorf("failed to collect hubble flows for %q in namespace %q: %w: %s", p.Name, p.Namespace, err, e.String())
