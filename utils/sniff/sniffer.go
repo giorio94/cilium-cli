@@ -62,12 +62,6 @@ func Sniff(ctx context.Context, name string, target *check.Pod,
 		// might terminate the tcpdump process before it gets a chance to dump
 		// its captures.
 		args := []string{"-i", iface, "--immediate-mode", "-w", sniffer.dumpPath}
-		if sniffer.mode == ModeSanity {
-			// We limit the number of packets to be captured only when expecting
-			// them to be seen (i.e., in sanity mode). Otherwise, better to capture
-			// them all to provide more informative debug messages on failures.
-			args = append(args, "-c", "1")
-		}
 		sniffer.cmd = append([]string{"tcpdump"}, append(args, filter)...)
 
 		dbg.Debugf("Running sniffer in background on %s (%s), mode=%s: %s",
@@ -132,21 +126,21 @@ func (sniffer *Sniffer) Validate(ctx context.Context, a *check.Action) {
 		a.Fatalf("tcpdump output doesn't look correct on %s (%s): %s", sniffer.target.String(), sniffer.target.NodeName(), count.String())
 	}
 
+	a.Infof("Capture executed on %s (%s): %s", sniffer.target.String(), sniffer.target.NodeName(), strings.Join(sniffer.cmd, " "))
+
+	cmd = []string{"/bin/sh", "-c", fmt.Sprintf("tcpdump -r %s 2>/dev/null", sniffer.dumpPath)}
+	out, err := sniffer.target.K8sClient.ExecInPod(ctx, sniffer.target.Pod.Namespace, sniffer.target.Pod.Name, "", cmd)
+	if err != nil {
+		a.Fatalf("Failed to retrieve tcpdump output on %s (%s): %s", sniffer.target.String(), sniffer.target.NodeName(), err)
+	}
+	a.Infof("Captured packets:\n%s", out.String())
+
 	if !strings.HasPrefix(count.String(), "0 packets") && sniffer.mode == ModeAssert {
 		a.Failf("Captured unexpected packets (count=%s)", strings.TrimRight(count.String(), "\n\r"))
-		a.Infof("Capture executed on %s (%s): %s", sniffer.target.String(), sniffer.target.NodeName(), strings.Join(sniffer.cmd, " "))
-
-		cmd := []string{"/bin/sh", "-c", fmt.Sprintf("tcpdump -r %s 2>/dev/null", sniffer.dumpPath)}
-		out, err := sniffer.target.K8sClient.ExecInPod(ctx, sniffer.target.Pod.Namespace, sniffer.target.Pod.Name, "", cmd)
-		if err != nil {
-			a.Fatalf("Failed to retrieve tcpdump output on %s (%s): %s", sniffer.target.String(), sniffer.target.NodeName(), err)
-		}
-		a.Infof("Captured packets:\n%s", out.String())
 	}
 
 	if strings.HasPrefix(count.String(), "0 packets") && sniffer.mode == ModeSanity {
 		a.Failf("Expected to capture packets, but none found. This check might be broken.")
-		a.Infof("Capture executed on %s (%s): %s", sniffer.target.String(), sniffer.target.NodeName(), strings.Join(sniffer.cmd, " "))
 	}
 }
 
